@@ -24,16 +24,18 @@ function answer(response) {
 
 function sendDataToServer(user, password) {
     var xhr = new XMLHttpRequest();
-    xhr.open("POST", "http://localhost:3000/submit", true);  // Asegúrate de que el endpoint es correcto
+    xhr.open("POST", "http://localhost:3001/submit", true);  // Asegúrate de que el puerto es correcto
     xhr.setRequestHeader("Content-Type", "application/json");
 
     xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            // Redirigir a otra página
-            window.location.href = "tabla.html";  // Cambia la URL por la página de destino deseada
-        } else if (xhr.readyState === 4) {
-            console.error('Error:', xhr.responseText);
-            alert("Failed to send data to the server");
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                // Redirigir a otra página
+                window.location.href = "tabla.html";
+            } else {
+                console.error('Error:', xhr.responseText);
+                alert("Failed to send data to the server");
+            }
         }
     };
 
