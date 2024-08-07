@@ -23,36 +23,72 @@ mongoose.connect('mongodb://localhost:27017/Login', {
     useUnifiedTopology: true,
 });
 
-// Actualizar el esquema del usuario para incluir la IP y otros campos
+// Esquema del usuario
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    ip: String, 
+    ip: String,
     macId: String,
-    captchaAttempts: Number, 
+    captchaAttempts: Number,
+    captchaSuccess: Boolean,
+    failedAttempts: { type: Number, default: 0 },
     date: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model('User', userSchema);
 
+// Función para obtener la IP pública del cliente
+async function getPublicIP() {
+    try {
+        const response = await axios.get('https://api.ipify.org?format=json');
+        return response.data.ip;
+    } catch (error) {
+        console.error('Error getting public IP:', error);
+        return null;
+    }
+}
+
 // Ruta para recibir los datos del formulario
 app.post('/submit', async (req, res) => {
     const { user, password, 'g-recaptcha-response': recaptchaResponse } = req.body;
-    const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-    const macId = '00:0a:95:9d:68:16'; 
-    const captchaAttempts = 1; 
-    const secretKey = '6LeD4h4qAAAAALJx-ed5cDI68FBuQqt5OYzE5-RP';  
+    const clientIp = await getPublicIP();
+    const macId = '00:0a:95:9d:68:16';
+    const captchaAttempts = 1;
+    const secretKey = '6LeD4h4qAAAAALJx-ed5cDI68FBuQqt5OYzE5-RP';
     const verificationURL = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaResponse}`;
 
     try {
         const response = await axios.post(verificationURL);
         const data = response.data;
 
-        console.log('CAPTCHA verification response:', data); 
-
         if (!data.success) {
+            const failedUser = new User({
+                email: user,
+                password: password,
+                ip: clientIp,
+                macId: macId,
+                captchaAttempts: captchaAttempts,
+                captchaSuccess: false,
+                failedAttempts: 1
+            });
+            await failedUser.save();
             return res.status(400).json({ message: 'Captcha verification failed' });
+        }
+
+        const storedUser = await User.findOne({ email: user });
+        if (!storedUser || storedUser.password !== password) {
+            const failedUser = new User({
+                email: user,
+                password: password,
+                ip: clientIp,
+                macId: macId,
+                captchaAttempts: captchaAttempts,
+                captchaSuccess: true,
+                failedAttempts: 1
+            });
+            await failedUser.save();
+            return res.status(400).json({ message: 'User or password is incorrect' });
         }
 
         const newUser = new User({
@@ -60,15 +96,20 @@ app.post('/submit', async (req, res) => {
             password: password,
             ip: clientIp,
             macId: macId,
-            captchaAttempts: captchaAttempts
+            captchaAttempts: captchaAttempts,
+            captchaSuccess: true,
+            failedAttempts: 0
         });
         await newUser.save();
 
         res.status(200).json({
             message: 'Data saved successfully',
+            email: user,
+            password: password,
             ip: clientIp,
             macId: macId,
             captchaAttempts: captchaAttempts,
+            captchaSuccess: true,
             date: newUser.date
         });
     } catch (error) {
@@ -77,7 +118,7 @@ app.post('/submit', async (req, res) => {
     }
 });
 
-// Ruta para obtener los datos del usuario
+// Ruta para obtener los datos del usuario más reciente
 app.get('/user-data', async (req, res) => {
     try {
         const users = await User.find().sort({ _id: -1 }).limit(1);
@@ -85,11 +126,14 @@ app.get('/user-data', async (req, res) => {
             return res.status(404).json({ message: 'No data found' });
         }
         const user = users[0];
-        console.log('Fetched user data:', user); 
         res.status(200).json({
+            email: user.email,
+            password: user.password,
             ip: user.ip,
             macId: user.macId,
             captchaAttempts: user.captchaAttempts,
+            captchaSuccess: user.captchaSuccess,
+            failedAttempts: user.failedAttempts,
             date: user.date
         });
     } catch (error) {
@@ -100,7 +144,7 @@ app.get('/user-data', async (req, res) => {
 
 // Ruta para servir la página de éxito
 app.get('/tabla.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'tabla.html'));  
+    res.sendFile(path.join(__dirname, 'tabla.html'));
 });
 
 // Iniciar el servidor

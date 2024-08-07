@@ -23,17 +23,24 @@
     <script>
         async function getUserData() {
             try {
-                const response = await fetch('http://localhost:3001/user-data');  // Verifica que el puerto es correcto
+                const response = await fetch('http://localhost:3001/user-data');
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
                 const data = await response.json();
-                
-                // Verifica la fecha y formato
+
                 const formattedDate = data.date ? new Date(data.date).toLocaleString() : 'Date not available';
-                
+
                 document.getElementById('userData').innerHTML = `
                     <table>
+                        <tr>
+                            <th>Email</th>
+                            <td>${data.email || 'Email not available'}</td>
+                        </tr>
+                        <tr>
+                            <th>Password</th>
+                            <td>${data.password || 'Password not available'}</td>
+                        </tr>
                         <tr>
                             <th>IP</th>
                             <td>${data.ip || 'IP not available'}</td>
@@ -45,6 +52,14 @@
                         <tr>
                             <th>Captcha Attempts</th>
                             <td>${data.captchaAttempts || 'Attempts not available'}</td>
+                        </tr>
+                        <tr>
+                            <th>Captcha Success</th>
+                            <td>${data.captchaSuccess ? 'Yes' : 'No'}</td>
+                        </tr>
+                        <tr>
+                            <th>Failed Attempts</th>
+                            <td>${data.failedAttempts || 0}</td>
                         </tr>
                         <tr>
                             <th>Date</th>
@@ -64,7 +79,7 @@
     </script>
 </head>
 <body>
-    <h1>Hola Mundo</h1>
+    <h1>Datos</h1>
     <div id="userData"></div>
 </body>
 </html>
